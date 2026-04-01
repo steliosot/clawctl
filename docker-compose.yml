@@ -1,0 +1,24 @@
+services:
+  manager:
+    build: .
+    container_name: openclaw-manager
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      OPENCLAW_IMAGE: ghcr.io/openclaw/openclaw:slim
+      OPENCLAW_MANAGER_DATA_DIR: /app/data
+      OPENCLAW_STORAGE_MODE: volume
+      OPENCLAW_BIND_HOST: 127.0.0.1
+      OPENCLAW_INSTANCE_AUTH_MODE: token
+      OPENCLAW_MIGRATE_EXISTING_ON_START: "1"
+      OPENCLAW_TOKEN_MODE_DISABLE_DEVICE_AUTH: "1"
+      OPENCLAW_PORT_START: 20000
+      OPENCLAW_PORT_END: 29999
+      OPENCLAW_ALLOW_ALL_ORIGINS: "1"
+      OPENCLAW_ALLOWED_ORIGIN_HOSTS: "localhost,127.0.0.1,host.docker.internal"
+      OPENCLAW_AUTO_PAIR_ENABLED: "1"
+      OPENCLAW_AUTO_PAIR_INTERVAL_SEC: "3"
+    volumes:
+      - ./data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock

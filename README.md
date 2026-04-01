@@ -204,7 +204,34 @@ Sample output:
 {"status":"ok"}
 ```
 
-## 7) Main config (docker-compose defaults)
+## 7) Attach to a User Container (`-it`)
+
+Find the container name:
+
+```bash
+docker ps --filter label=managed-by=openclaw-manager --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+```
+
+Attach an interactive shell:
+
+```bash
+docker exec -it openclaw-user-alice sh
+```
+
+If `sh` is unavailable, try:
+
+```bash
+docker exec -it openclaw-user-alice bash
+```
+
+Useful checks from host:
+
+```bash
+docker logs --tail 100 openclaw-user-alice
+docker inspect openclaw-user-alice --format '{{json .State}}'
+```
+
+## 8) Main config (docker-compose defaults)
 
 - `OPENCLAW_INSTANCE_AUTH_MODE=token`
 - `OPENCLAW_TOKEN_MODE_DISABLE_DEVICE_AUTH=1`

@@ -70,7 +70,57 @@ python cli.py restart --user alice
 python cli.py delete --user alice
 ```
 
-## 3) Login as the user
+## 3) Use the API Programmatically (Python)
+
+Install once:
+
+```bash
+pip install requests
+```
+
+Example 1: create a user instance
+
+```python
+import requests
+
+BASE = "http://127.0.0.1:8080"
+
+r = requests.post(
+    f"{BASE}/instances",
+    json={"user_id": "alice", "port": 20030},
+    timeout=20,
+)
+r.raise_for_status()
+data = r.json()
+print("URL:", data["url"])
+print("Token:", data.get("token"))
+```
+
+Example output:
+
+```text
+URL: http://127.0.0.1:20030
+Token: YOUR_TOKEN_HERE
+```
+
+Example 2: get one instance and list all
+
+```python
+import requests
+from pprint import pprint
+
+BASE = "http://127.0.0.1:8080"
+
+one = requests.get(f"{BASE}/instances/alice", timeout=20)
+one.raise_for_status()
+pprint(one.json())
+
+all_instances = requests.get(f"{BASE}/instances", timeout=20)
+all_instances.raise_for_status()
+pprint(all_instances.json())
+```
+
+## 4) Login as the user
 
 From `python cli.py info --user alice`, use:
 
@@ -79,7 +129,7 @@ From `python cli.py info --user alice`, use:
 
 Open URL in browser and authenticate with token.
 
-## 4) Clean reset (optional)
+## 5) Clean reset (optional)
 
 Delete all manager-created user containers and volumes:
 
@@ -97,7 +147,7 @@ mkdir -p data/users
 printf '{}\n' > data/instances.json
 ```
 
-## Command Reference (with sample output)
+## 6) Command Reference (with sample output)
 
 `python cli.py create --user alice --port 20030`
 
@@ -154,7 +204,7 @@ Sample output:
 {"status":"ok"}
 ```
 
-## Main config (docker-compose defaults)
+## 7) Main config (docker-compose defaults)
 
 - `OPENCLAW_INSTANCE_AUTH_MODE=token`
 - `OPENCLAW_TOKEN_MODE_DISABLE_DEVICE_AUTH=1`

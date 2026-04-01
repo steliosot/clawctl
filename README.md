@@ -231,7 +231,33 @@ docker logs --tail 100 openclaw-user-alice
 docker inspect openclaw-user-alice --format '{{json .State}}'
 ```
 
-## 8) Main config (docker-compose defaults)
+## 8) Container Size Per User
+
+Each user container shares the same OpenClaw image layers.
+Per-user extra disk usage is mostly:
+
+- container writable layer
+- user Docker volume (persistent data)
+
+Check per-container writable size:
+
+```bash
+docker ps -s --filter label=managed-by=openclaw-manager
+```
+
+Check per-user volume size:
+
+```bash
+docker system df -v
+```
+
+Check live CPU/RAM per user container:
+
+```bash
+docker stats --no-stream openclaw-user-alice
+```
+
+## 9) Main config (docker-compose defaults)
 
 - `OPENCLAW_INSTANCE_AUTH_MODE=token`
 - `OPENCLAW_TOKEN_MODE_DISABLE_DEVICE_AUTH=1`

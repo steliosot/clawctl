@@ -1,4 +1,4 @@
-# openclaw-k
+# clawctl
 
 Simple manager that creates one OpenClaw Docker container per user.
 
@@ -87,45 +87,40 @@ Look for `Capabilities` containing `tools`.
 ## CLI Commands
 
 ```bash
-openclaw-k create --user alice --port 20030
-openclaw-k info --user alice
-openclaw-k list
-openclaw-k restart --user alice
-openclaw-k delete --user alice
-openclaw-k wait-ready --user alice
+clawctl create --user alice --port 20030
+clawctl info --user alice
+clawctl list
+clawctl restart --user alice
+clawctl delete --user alice
+clawctl wait-ready --user alice
 ```
-
-Both command names are supported:
-
-- `openclaw-k`
-- `open-claw-k`
 
 ## Create Instance Examples
 
 Default OpenClaw behavior (no provider override):
 
 ```bash
-openclaw-k create --user bob-default --port 21003
+clawctl create --user bob-default --port 21003
 ```
 
 Ollama provider with default model:
 
 ```bash
-openclaw-k create --user bob-ollama --port 21004 --provider ollama
+clawctl create --user bob-ollama --port 21004 --provider ollama
 ```
 
 Ollama provider with explicit model:
 
 ```bash
-openclaw-k create --user bob-qwen --port 21005 --provider ollama --model qwen2.5:7b
-openclaw-k create --user bob-mistral --port 21006 --provider ollama --model mistral:latest
+clawctl create --user bob-qwen --port 21005 --provider ollama --model qwen2.5:7b
+clawctl create --user bob-mistral --port 21006 --provider ollama --model mistral:latest
 ```
 
 Show details:
 
 ```bash
-openclaw-k info --user bob-qwen
-openclaw-k list
+clawctl info --user bob-qwen
+clawctl list
 ```
 
 ## Use with Python
@@ -177,7 +172,7 @@ pprint(all_instances.json())
 Get connection info:
 
 ```bash
-openclaw-k info --user bob-mistral
+clawctl info --user bob-mistral
 ```
 
 Use from output:

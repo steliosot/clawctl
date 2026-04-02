@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "openclaw-k"
+name = "clawctl"
 version = "0.1.0"
 description = "Simple manager and CLI for per-user OpenClaw Docker instances"
 readme = "README.md"
@@ -17,8 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-openclaw-k = "cli:main"
-open-claw-k = "cli:main"
+clawctl = "cli:main"
 
 [tool.setuptools]
 py-modules = ["api", "cli", "openclaw_manager"]

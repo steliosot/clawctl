@@ -70,7 +70,59 @@ python cli.py restart --user alice
 python cli.py delete --user alice
 ```
 
-## 3) Use the API Programmatically (Python)
+## 3) Run Ollama Locally (Optional)
+
+Start Ollama in Docker on port `11434`:
+
+```bash
+docker run -d \
+  --name ollama \
+  -p 11434:11434 \
+  -v ollama:/root/.ollama \
+  ollama/ollama:latest
+```
+
+Pull models you want to use:
+
+```bash
+docker exec -it ollama ollama pull mistral
+docker exec -it ollama ollama pull codellama:7b
+```
+
+Quick check:
+
+```bash
+curl http://127.0.0.1:11434/api/tags
+```
+
+## 4) Create Instances (Default vs Ollama)
+
+Default OpenClaw behavior (no provider override):
+
+```bash
+python cli.py create --user bob-default --port 21003
+```
+
+Ollama with default model (`mistral`):
+
+```bash
+python cli.py create --user bob-ollama --port 21004 --provider ollama
+```
+
+Ollama with explicit model:
+
+```bash
+python cli.py create --user bob-code --port 21005 --provider ollama --model codellama:7b
+```
+
+Show instance details:
+
+```bash
+python cli.py info --user bob-code
+python cli.py list
+```
+
+## 5) Use the API Programmatically (Python)
 
 Install once:
 
@@ -120,7 +172,7 @@ all_instances.raise_for_status()
 pprint(all_instances.json())
 ```
 
-## 4) Login as the user
+## 6) Login as the user
 
 From `python cli.py info --user alice`, use:
 
@@ -129,7 +181,7 @@ From `python cli.py info --user alice`, use:
 
 Open URL in browser and authenticate with token.
 
-## 5) Clean reset (optional)
+## 7) Clean reset (optional)
 
 Delete all manager-created user containers and volumes:
 
@@ -147,7 +199,7 @@ mkdir -p data/users
 printf '{}\n' > data/instances.json
 ```
 
-## 6) Command Reference (with sample output)
+## 8) Command Reference (with sample output)
 
 `python cli.py create --user alice --port 20030`
 
@@ -160,6 +212,25 @@ Sample output:
   "status": "running",
   "token": "YOUR_TOKEN_HERE",
   "url": "http://127.0.0.1:20030",
+  "user_id": "alice"
+}
+```
+
+`python cli.py create --user alice --port 20031 --provider ollama --model codellama:7b`
+
+Sample output:
+
+```json
+{
+  "auth_mode": "token",
+  "container_name": "openclaw-alice",
+  "host_port": 20031,
+  "llm_base_url": "http://host.docker.internal:11434",
+  "llm_model": "codellama:7b",
+  "provider": "ollama",
+  "status": "running",
+  "token": "YOUR_TOKEN_HERE",
+  "url": "http://127.0.0.1:20031",
   "user_id": "alice"
 }
 ```
@@ -204,7 +275,7 @@ Sample output:
 {"status":"ok"}
 ```
 
-## 7) Attach to a User Container (`-it`)
+## 9) Attach to a User Container (`-it`)
 
 Find the container name:
 
@@ -231,7 +302,7 @@ docker logs --tail 100 openclaw-user-alice
 docker inspect openclaw-user-alice --format '{{json .State}}'
 ```
 
-## 8) Container Size Per User
+## 10) Container Size Per User
 
 Each user container shares the same OpenClaw image layers.
 Per-user extra disk usage is mostly:
@@ -257,7 +328,7 @@ Check live CPU/RAM per user container:
 docker stats --no-stream openclaw-user-alice
 ```
 
-## 9) Main config (docker-compose defaults)
+## 11) Main config (docker-compose defaults)
 
 - `OPENCLAW_INSTANCE_AUTH_MODE=token`
 - `OPENCLAW_TOKEN_MODE_DISABLE_DEVICE_AUTH=1`

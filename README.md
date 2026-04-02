@@ -1,11 +1,19 @@
 # clawctl
 
-Simple manager that creates one OpenClaw Docker container per user.
+**`OpenClaw up and running in 3 seconds`**
+
+A simple manager for spinning up an OpenClaw Docker container per user in seconds.
+
+![clawctl-terminal](assets/clawctl-terminal.png)
+
+Plus, it connects to local Ollama models by default (optional).
+
+![clawctl-web](assets/clawctl-web.png)
 
 ## Quick Install (from GitHub)
 
 ```bash
-pip install "git+https://github.com/steliosot/openclaw-k.git"
+pip install "git+https://github.com/steliosot/clawctl.git"
 ```
 
 Start the manager (from repo root):

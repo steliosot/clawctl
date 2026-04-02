@@ -5,3 +5,4 @@ __pycache__/
 .DS_Store
 data/
 data_token_smoke/
+*.egg-info/

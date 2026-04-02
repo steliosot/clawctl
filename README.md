@@ -28,9 +28,29 @@ Expected:
 {"status":"ok"}
 ```
 
-## 2) Use the CLI
+## 2) Install and Use the CLI
 
-Install CLI deps once:
+Install from GitHub (recommended):
+
+```bash
+pip install "git+https://github.com/steliosot/openclaw-k.git"
+```
+
+Then point CLI to manager API:
+
+```bash
+export OPENCLAW_MANAGER_API=http://127.0.0.1:8080
+```
+
+Use:
+
+```bash
+openclaw-k create --user alice --port 20030
+openclaw-k info --user alice
+openclaw-k list
+```
+
+Local dev option (from repo):
 
 ```bash
 # from repo root
@@ -39,7 +59,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Point CLI to manager API:
+Set manager API:
 
 ```bash
 export OPENCLAW_MANAGER_API=http://127.0.0.1:8080
@@ -48,26 +68,26 @@ export OPENCLAW_MANAGER_API=http://127.0.0.1:8080
 Create user container:
 
 ```bash
-python cli.py create --user alice --port 20030
+openclaw-k create --user alice --port 20030
 ```
 
 Show user info:
 
 ```bash
-python cli.py info --user alice
+openclaw-k info --user alice
 ```
 
 List all:
 
 ```bash
-python cli.py list
+openclaw-k list
 ```
 
 Restart/delete:
 
 ```bash
-python cli.py restart --user alice
-python cli.py delete --user alice
+openclaw-k restart --user alice
+openclaw-k delete --user alice
 ```
 
 ## 3) Run Ollama Locally (Optional)
@@ -134,26 +154,26 @@ Check `Capabilities` includes `tools`.
 Default OpenClaw behavior (no provider override):
 
 ```bash
-python cli.py create --user bob-default --port 21003
+openclaw-k create --user bob-default --port 21003
 ```
 
 Ollama with default model (`mistral`):
 
 ```bash
-python cli.py create --user bob-ollama --port 21004 --provider ollama
+openclaw-k create --user bob-ollama --port 21004 --provider ollama
 ```
 
 Ollama with explicit model:
 
 ```bash
-python cli.py create --user bob-code --port 21005 --provider ollama --model codellama:7b
+openclaw-k create --user bob-code --port 21005 --provider ollama --model codellama:7b
 ```
 
 Show instance details:
 
 ```bash
-python cli.py info --user bob-code
-python cli.py list
+openclaw-k info --user bob-code
+openclaw-k list
 ```
 
 ## 6) Use the API Programmatically (Python)
@@ -208,7 +228,7 @@ pprint(all_instances.json())
 
 ## 7) Login as the user
 
-From `python cli.py info --user alice`, use:
+From `openclaw-k info --user alice`, use:
 
 - `url` (example: `http://127.0.0.1:20030`)
 - `token`

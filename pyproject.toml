@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openclaw-k"
+version = "0.1.0"
+description = "Simple manager and CLI for per-user OpenClaw Docker instances"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi==0.116.1",
+  "uvicorn==0.35.0",
+  "docker==7.1.0",
+  "typer==0.16.1",
+  "requests==2.32.4",
+]
+
+[project.scripts]
+openclaw-k = "cli:main"
+
+[tool.setuptools]
+py-modules = ["api", "cli", "openclaw_manager"]

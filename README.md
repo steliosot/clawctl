@@ -6,9 +6,14 @@ A simple manager for spinning up an OpenClaw Docker container per user in second
 
 ![clawctl-terminal](assets/clawctl-terminal.png)
 
-Plus, it connects to local Ollama models by default (optional).
+Plus, it connects to local Ollama models by default, so it’s ready to use immediately.
 
 ![clawctl-web](assets/clawctl-web.png)
+
+If images do not render on GitHub immediately, refresh the page or open these direct links:
+
+- https://raw.githubusercontent.com/steliosot/clawctl/main/assets/clawctl-terminal.png
+- https://raw.githubusercontent.com/steliosot/clawctl/main/assets/clawctl-web.png
 
 ## Quick Install (from GitHub)
 

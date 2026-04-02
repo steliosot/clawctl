@@ -22,33 +22,11 @@ Plus, you can manage multiple OpenClaw users.
 
 ### System Requirements
 
-Architecture:
+Runs with 1 manager container, 1 OpenClaw container per user, and a shared Ollama container for local models. 
 
-- `1` manager container
-- `1` OpenClaw container per user
-- `1` separate Ollama container (required for `--provider ollama`)
-
-Practical baseline:
-
-- Small test (`1-5` users): `8 vCPU`, `16 GB RAM`, `50 GB SSD`
-- Medium (`10-25` users): `16 vCPU`, `32-64 GB RAM`, `100+ GB SSD`
-- Larger (`50+` users): `32+ vCPU`, `128 GB RAM`, fast SSD/NVMe
-
-Observed footprint in this setup:
-
-- OpenClaw image (shared): `~2.33 GB`
-- Manager image: `~0.25 GB`
-- Per-user OpenClaw writable layer: `~15 MB/user` (plus workspace growth)
-- Ollama image: `~8.65 GB`
-- Example model sizes:
-  - `mistral:latest` `4.4 GB`
-  - `qwen2.5:7b` `4.7 GB`
-  - `codellama:7b` `3.8 GB`
-
-Capacity rule:
-
-- `N` users -> about `N+2` total containers (`N` user containers + manager + Ollama)
-- Main bottleneck is model inference CPU/RAM concurrency, not OpenClaw container overhead.
+* For small setups (1–5 users), use ~8 vCPU, 16 GB RAM. 
+* Medium (10–25 users) needs ~16 vCPU, 32–64 GB RAM
+* Larger deployments (50+ users) require 32+ vCPU 128 GB RAM, and fast SSD/NVMe
 
 ### Quick Install (from GitHub)
 

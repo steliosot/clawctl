@@ -238,9 +238,12 @@ class OpenClawManager:
         if provider == "ollama":
             model_id = llm_model or "mistral"
             base_url = llm_base_url or "http://host.docker.internal:11434"
+            ollama_api_key = os.getenv("OPENCLAW_OLLAMA_API_KEY", "ollama-local")
             provider_cfg = json.dumps(
                 {
                     "baseUrl": base_url,
+                    "api": "ollama",
+                    "apiKey": ollama_api_key,
                     "models": [
                         {
                             "id": model_id,
@@ -326,7 +329,11 @@ class OpenClawManager:
         row["url"] = f"http://{DEFAULT_BIND_HOST}:{row['host_port']}"
         return row
 
-    def _provider_settings(self, provider: str | None) -> tuple[str | None, dict[str, str], str | None, str | None, str | None]:
+    def _provider_settings(
+        self,
+        provider: str | None,
+        model: str | None = None,
+    ) -> tuple[str | None, dict[str, str], str | None, str | None, str | None]:
         if provider is None:
             return None, {}, None, None, None
         normalized = provider.strip().lower()
@@ -334,11 +341,13 @@ class OpenClawManager:
             return None, {}, None, None, None
         if normalized == "ollama":
             llm_base_url = os.getenv("OPENCLAW_OLLAMA_BASE_URL", "http://host.docker.internal:11434")
-            llm_model = os.getenv("OPENCLAW_OLLAMA_MODEL", "mistral")
+            llm_model = (model.strip() if model and model.strip() else os.getenv("OPENCLAW_OLLAMA_MODEL", "mistral"))
+            ollama_api_key = os.getenv("OPENCLAW_OLLAMA_API_KEY", "ollama-local")
             env = {
                 "OPENCLAW_LLM_PROVIDER": "ollama",
                 "OPENCLAW_LLM_BASE_URL": llm_base_url,
                 "OPENCLAW_LLM_MODEL": llm_model,
+                "OLLAMA_API_KEY": ollama_api_key,
             }
             return "ollama", env, None, llm_base_url, llm_model
         raise ManagerError(f"Unsupported provider '{provider}'. Supported: ollama")
@@ -349,6 +358,7 @@ class OpenClawManager:
         port: int | None = None,
         image: str | None = None,
         provider: str | None = None,
+        model: str | None = None,
     ) -> dict[str, Any]:
         reg = self._read_registry()
         if user_id in reg:
@@ -370,7 +380,7 @@ class OpenClawManager:
 
         mounts, config_ref, workspace_ref = self._build_storage_mounts(slug)
 
-        resolved_provider, provider_env, provider_auth_mode, llm_base_url, llm_model = self._provider_settings(provider)
+        resolved_provider, provider_env, provider_auth_mode, llm_base_url, llm_model = self._provider_settings(provider, model=model)
         auth_mode = provider_auth_mode or self._auth_mode()
         token = secrets.token_urlsafe(32) if auth_mode == "token" else None
         created_at = datetime.now(timezone.utc).isoformat()

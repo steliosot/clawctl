@@ -46,8 +46,9 @@ def create(
     port: int | None = typer.Option(None, "--port"),
     image: str | None = typer.Option(None, "--image"),
     provider: str | None = typer.Option(None, "--provider"),
+    model: str | None = typer.Option(None, "--model"),
 ) -> None:
-    payload = {"user_id": user, "port": port, "image": image, "provider": provider}
+    payload = {"user_id": user, "port": port, "image": image, "provider": provider, "model": model}
     r = requests.post(f"{API_URL}/instances", json=payload, timeout=180)
     _print_response(r)
     _print_instance_hint(r.json())

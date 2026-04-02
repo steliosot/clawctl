@@ -120,6 +120,7 @@ docker exec -it ollama ollama pull llama3.1:8b
 Important:
 
 - `codellama:7b` is completion-only in Ollama and does not support tools for OpenClaw agent mode.
+- If you pass a model tag that Ollama does not expose directly (for example `qwen2.5:7b` on some installs), the manager auto-resolves it to an available local alias (usually `qwen2.5:latest`).
 - If unsure, verify capabilities with:
 
 ```bash

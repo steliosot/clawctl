@@ -1,6 +1,6 @@
 # clawctl
 
-**`OpenClaw up and running in 3 seconds`**
+**`OpenClaw up and running in 3 seconds!`**
 
 A simple manager for spinning up an OpenClaw Docker container per user in seconds.
 
@@ -14,7 +14,13 @@ Plus, you can manage multiple OpenClaw users.
 
 ![clawctl-terminal-users](assets/clawctl-terminal-users.png)
 
-## Quick Install (from GitHub)
+### Tech Notes
+
+- Creates one OpenClaw container per user.
+- Each user container is exposed on its own host port.
+- `clawctl` talks to the manager API (`OPENCLAW_MANAGER_API`, default `http://127.0.0.1:8080`).
+
+### Quick Install (from GitHub)
 
 ```bash
 pip install "git+https://github.com/steliosot/clawctl.git"
@@ -44,7 +50,7 @@ Set CLI API target:
 export OPENCLAW_MANAGER_API=http://127.0.0.1:8080
 ```
 
-## Run Ollama Locally
+### Run Ollama Locally
 
 Start Ollama on `11434`:
 
@@ -72,7 +78,7 @@ Check available tags:
 curl http://127.0.0.1:11434/api/tags
 ```
 
-## Recommended Models (Tool-Capable)
+### Recommended Models (Tool-Capable)
 
 Use tool-capable models for OpenClaw agent workflows.
 
@@ -96,18 +102,26 @@ docker exec -it ollama ollama show <model>
 
 Look for `Capabilities` containing `tools`.
 
-## CLI Commands
+### CLI Commands
 
-```bash
-clawctl create --user alice --port 20030
-clawctl info --user alice
-clawctl list
-clawctl restart --user alice
-clawctl delete --user alice
-clawctl wait-ready --user alice
-```
+Usage: `clawctl [OPTIONS] COMMAND [ARGS]...`
 
-## Create Instance Examples
+| Command | What it does |
+|---|---|
+| `create` | Create a user instance/container |
+| `list` | List all user instances |
+| `info` | Show one user instance details |
+| `restart` | Restart one user instance |
+| `delete` | Delete one user instance |
+| `wait-ready` | Wait until instance is reachable |
+
+Options:
+
+- `--install-completion`
+- `--show-completion`
+- `--help`
+
+### Create Instance Examples
 
 Default OpenClaw behavior (no provider override):
 
@@ -135,7 +149,7 @@ clawctl info --user bob-qwen
 clawctl list
 ```
 
-## Use with Python
+### Use with Python
 
 ```bash
 pip install requests
@@ -179,7 +193,7 @@ all_instances.raise_for_status()
 pprint(all_instances.json())
 ```
 
-## Connect to Ollama as a User
+### Connect to Ollama as a User
 
 Get connection info:
 
@@ -196,7 +210,7 @@ Open URL in browser, enter token, and start chatting.
 
 If UI shows an older model label, create a fresh chat/session or a fresh user id.
 
-## Attach to Container (`-it`)
+### Attach to Container (`-it`)
 
 Find manager-created containers:
 

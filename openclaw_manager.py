@@ -50,6 +50,9 @@ class Instance:
     config_dir: str
     workspace_dir: str
     image: str
+    provider: str | None = None
+    llm_base_url: str | None = None
+    llm_model: str | None = None
 
 
 class OpenClawManager:
@@ -127,6 +130,12 @@ class OpenClawManager:
         # Keep deterministic order and remove duplicates.
         return list(dict.fromkeys(origins))
 
+    def _gateway_bind_value(self, auth_mode: str) -> str:
+        # Containers must bind on a non-loopback interface so published host ports work.
+        # Host exposure is still controlled by OPENCLAW_BIND_HOST (127.0.0.1 by default).
+        _ = auth_mode
+        return "lan"
+
     def _exec_openclaw(self, container_name: str, args: list[str]) -> str:
         try:
             container = self.client.containers.get(container_name)
@@ -179,6 +188,7 @@ class OpenClawManager:
         mounts: dict[str, dict[str, str]],
         token: str | None,
         host_port: int,
+        auth_mode: str,
     ) -> None:
         # Initialize per-user config non-interactively so gateway can bind immediately.
         self.client.containers.run(
@@ -196,8 +206,7 @@ class OpenClawManager:
         if token:
             base_env["OPENCLAW_GATEWAY_TOKEN"] = token
         allowed_origins = json.dumps(self._allowed_origins_for_port(host_port))
-        auth_mode = self._auth_mode()
-        bind_value = "loopback" if auth_mode == "none" else "lan"
+        bind_value = self._gateway_bind_value(auth_mode)
         setup_commands = [
             ["node", "openclaw.mjs", "config", "set", "gateway.mode", "local"],
             ["node", "openclaw.mjs", "config", "set", "gateway.bind", bind_value],
@@ -293,7 +302,30 @@ class OpenClawManager:
         row["url"] = f"http://{DEFAULT_BIND_HOST}:{row['host_port']}"
         return row
 
-    def create_instance(self, user_id: str, port: int | None = None, image: str | None = None) -> dict[str, Any]:
+    def _provider_settings(self, provider: str | None) -> tuple[str | None, dict[str, str], str | None, str | None, str | None]:
+        if provider is None:
+            return None, {}, None, None, None
+        normalized = provider.strip().lower()
+        if normalized == "":
+            return None, {}, None, None, None
+        if normalized == "ollama":
+            llm_base_url = os.getenv("OPENCLAW_OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+            llm_model = os.getenv("OPENCLAW_OLLAMA_MODEL", "mistral")
+            env = {
+                "OPENCLAW_LLM_PROVIDER": "ollama",
+                "OPENCLAW_LLM_BASE_URL": llm_base_url,
+                "OPENCLAW_LLM_MODEL": llm_model,
+            }
+            return "ollama", env, None, llm_base_url, llm_model
+        raise ManagerError(f"Unsupported provider '{provider}'. Supported: ollama")
+
+    def create_instance(
+        self,
+        user_id: str,
+        port: int | None = None,
+        image: str | None = None,
+        provider: str | None = None,
+    ) -> dict[str, Any]:
         reg = self._read_registry()
         if user_id in reg:
             raise ManagerError(f"User '{user_id}' already has an instance.")
@@ -314,7 +346,8 @@ class OpenClawManager:
 
         mounts, config_ref, workspace_ref = self._build_storage_mounts(slug)
 
-        auth_mode = self._auth_mode()
+        resolved_provider, provider_env, provider_auth_mode, llm_base_url, llm_model = self._provider_settings(provider)
+        auth_mode = provider_auth_mode or self._auth_mode()
         token = secrets.token_urlsafe(32) if auth_mode == "token" else None
         created_at = datetime.now(timezone.utc).isoformat()
 
@@ -325,7 +358,8 @@ class OpenClawManager:
         }
         if token:
             env["OPENCLAW_GATEWAY_TOKEN"] = token
-        bind_value = "loopback" if auth_mode == "none" else "lan"
+        env.update(provider_env)
+        bind_value = self._gateway_bind_value(auth_mode)
 
         command = [
             "node",
@@ -342,8 +376,8 @@ class OpenClawManager:
         try:
             # Ensure a fresh image exists locally.
             self.client.images.pull(image_to_use)
-            self._bootstrap_user_config(image_to_use, mounts, token, host_port)
-            self.client.containers.run(
+            self._bootstrap_user_config(image_to_use, mounts, token, host_port, auth_mode)
+            run_kwargs: dict[str, Any] = dict(
                 image=image_to_use,
                 name=container_name,
                 command=command,
@@ -358,6 +392,9 @@ class OpenClawManager:
                     "openclaw.user_id": user_id,
                 },
             )
+            if resolved_provider == "ollama":
+                run_kwargs["extra_hosts"] = {"host.docker.internal": "host-gateway"}
+            self.client.containers.run(**run_kwargs)
             container_started = True
             self._wait_gateway_ready(container_name)
         except DockerException as exc:
@@ -381,6 +418,9 @@ class OpenClawManager:
             config_dir=str(config_ref),
             workspace_dir=str(workspace_ref),
             image=image_to_use,
+            provider=resolved_provider,
+            llm_base_url=llm_base_url,
+            llm_model=llm_model,
         )
         reg[user_id] = asdict(instance)
         self._write_registry(reg)
@@ -418,13 +458,14 @@ class OpenClawManager:
         return self.get_instance(user_id)
 
     def approve_pending_pairings(self, user_id: str) -> int:
-        if self._auth_mode() == "none":
-            return 0
         reg = self._read_registry()
         if user_id not in reg:
             raise ManagerError(f"User '{user_id}' has no instance.")
 
         row = reg[user_id]
+        row_auth_mode = str(row.get("auth_mode", self._auth_mode()))
+        if row_auth_mode == "none":
+            return 0
         if self._container_state(row["container_name"]) != "running":
             return 0
 
@@ -462,13 +503,15 @@ class OpenClawManager:
     def migrate_existing_instances(self) -> int:
         reg = self._read_registry()
         migrated = 0
-        auth_mode = self._auth_mode()
+        default_auth_mode = self._auth_mode()
         for user_id, row in reg.items():
             try:
+                row_auth_mode = str(row.get("auth_mode", default_auth_mode)).strip().lower()
+                auth_mode = row_auth_mode if row_auth_mode in {"none", "token"} else default_auth_mode
                 current_mode = str(row.get("auth_mode", ""))
                 current_token = row.get("token")
                 state = self._container_state(str(row["container_name"]))
-                expected_bind = "loopback" if auth_mode == "none" else "lan"
+                expected_bind = self._gateway_bind_value(auth_mode)
                 current_bind = None
                 current_device_auth_disabled = False
                 if state != "missing":
@@ -515,7 +558,7 @@ class OpenClawManager:
                         env_map["OPENCLAW_GATEWAY_TOKEN"] = str(reg[user_id]["token"])
                     else:
                         env_map.pop("OPENCLAW_GATEWAY_TOKEN", None)
-                    bind_value = "loopback" if auth_mode == "none" else "lan"
+                    bind_value = self._gateway_bind_value(auth_mode)
                     if state == "running":
                         c.stop(timeout=10)
                     c.remove(force=True)

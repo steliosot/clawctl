@@ -41,8 +41,13 @@ def _print_instance_hint(data: dict) -> None:
 
 
 @app.command()
-def create(user: str = typer.Option(..., "--user", "-u"), port: int | None = typer.Option(None, "--port"), image: str | None = typer.Option(None, "--image")) -> None:
-    payload = {"user_id": user, "port": port, "image": image}
+def create(
+    user: str = typer.Option(..., "--user", "-u"),
+    port: int | None = typer.Option(None, "--port"),
+    image: str | None = typer.Option(None, "--image"),
+    provider: str | None = typer.Option(None, "--provider"),
+) -> None:
+    payload = {"user_id": user, "port": port, "image": image, "provider": provider}
     r = requests.post(f"{API_URL}/instances", json=payload, timeout=180)
     _print_response(r)
     _print_instance_hint(r.json())

@@ -65,6 +65,7 @@ class CreateRequest(BaseModel):
     user_id: str = Field(..., min_length=1, max_length=120)
     port: int | None = Field(default=None, ge=1024, le=65535)
     image: str | None = None
+    provider: str | None = None
 
 
 @app.get("/healthz")
@@ -91,7 +92,7 @@ def get_instance(user_id: str) -> dict:
 @app.post("/instances")
 def create_instance(req: CreateRequest) -> dict:
     try:
-        return get_manager().create_instance(user_id=req.user_id, port=req.port, image=req.image)
+        return get_manager().create_instance(user_id=req.user_id, port=req.port, image=req.image, provider=req.provider)
     except ManagerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

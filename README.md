@@ -95,7 +95,40 @@ Quick check:
 curl http://127.0.0.1:11434/api/tags
 ```
 
-## 4) Create Instances (Default vs Ollama)
+## 4) Recommended Ollama Models (Tool-Capable)
+
+Use tool-capable models for OpenClaw agent workflows.
+
+| Model | Size | Good for |
+|---|---:|---|
+| `phi4-mini:latest` | 2.5GB | Lightweight, fast local testing |
+| `mistral:latest` | 4.4GB | Strong default general-purpose choice |
+| `qwen2.5:7b` | 4.7GB | Balanced reasoning + coding |
+| `qwen2.5-coder:7b` | 4.7GB | Coding-focused tasks |
+| `llama3.1:8b` | 4.9GB | General assistant with long context |
+
+Pull examples:
+
+```bash
+docker exec -it ollama ollama pull phi4-mini:latest
+docker exec -it ollama ollama pull mistral:latest
+docker exec -it ollama ollama pull qwen2.5:7b
+docker exec -it ollama ollama pull qwen2.5-coder:7b
+docker exec -it ollama ollama pull llama3.1:8b
+```
+
+Important:
+
+- `codellama:7b` is completion-only in Ollama and does not support tools for OpenClaw agent mode.
+- If unsure, verify capabilities with:
+
+```bash
+docker exec -it ollama ollama show <model>
+```
+
+Check `Capabilities` includes `tools`.
+
+## 5) Create Instances (Default vs Ollama)
 
 Default OpenClaw behavior (no provider override):
 
@@ -122,7 +155,7 @@ python cli.py info --user bob-code
 python cli.py list
 ```
 
-## 5) Use the API Programmatically (Python)
+## 6) Use the API Programmatically (Python)
 
 Install once:
 
@@ -172,7 +205,7 @@ all_instances.raise_for_status()
 pprint(all_instances.json())
 ```
 
-## 6) Login as the user
+## 7) Login as the user
 
 From `python cli.py info --user alice`, use:
 
@@ -181,7 +214,7 @@ From `python cli.py info --user alice`, use:
 
 Open URL in browser and authenticate with token.
 
-## 7) Clean reset (optional)
+## 8) Clean reset (optional)
 
 Delete all manager-created user containers and volumes:
 
@@ -199,7 +232,7 @@ mkdir -p data/users
 printf '{}\n' > data/instances.json
 ```
 
-## 8) Command Reference (with sample output)
+## 9) Command Reference (with sample output)
 
 `python cli.py create --user alice --port 20030`
 
@@ -275,7 +308,7 @@ Sample output:
 {"status":"ok"}
 ```
 
-## 9) Attach to a User Container (`-it`)
+## 10) Attach to a User Container (`-it`)
 
 Find the container name:
 
@@ -302,7 +335,7 @@ docker logs --tail 100 openclaw-user-alice
 docker inspect openclaw-user-alice --format '{{json .State}}'
 ```
 
-## 10) Container Size Per User
+## 11) Container Size Per User
 
 Each user container shares the same OpenClaw image layers.
 Per-user extra disk usage is mostly:
@@ -328,7 +361,7 @@ Check live CPU/RAM per user container:
 docker stats --no-stream openclaw-user-alice
 ```
 
-## 11) Main config (docker-compose defaults)
+## 12) Main config (docker-compose defaults)
 
 - `OPENCLAW_INSTANCE_AUTH_MODE=token`
 - `OPENCLAW_TOKEN_MODE_DISABLE_DEVICE_AUTH=1`

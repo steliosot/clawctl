@@ -5,6 +5,9 @@ import os
 import secrets
 import socket
 import time
+from urllib.error import URLError
+from urllib.parse import urljoin
+from urllib.request import urlopen
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -342,6 +345,7 @@ class OpenClawManager:
         if normalized == "ollama":
             llm_base_url = os.getenv("OPENCLAW_OLLAMA_BASE_URL", "http://host.docker.internal:11434")
             llm_model = (model.strip() if model and model.strip() else os.getenv("OPENCLAW_OLLAMA_MODEL", "mistral"))
+            llm_model = self._resolve_ollama_model_name(base_url=llm_base_url, requested_model=llm_model)
             ollama_api_key = os.getenv("OPENCLAW_OLLAMA_API_KEY", "ollama-local")
             env = {
                 "OPENCLAW_LLM_PROVIDER": "ollama",
@@ -351,6 +355,41 @@ class OpenClawManager:
             }
             return "ollama", env, None, llm_base_url, llm_model
         raise ManagerError(f"Unsupported provider '{provider}'. Supported: ollama")
+
+    def _fetch_ollama_tag_names(self, base_url: str) -> set[str]:
+        url = urljoin(base_url.rstrip("/") + "/", "api/tags")
+        try:
+            with urlopen(url, timeout=4) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except (URLError, TimeoutError, json.JSONDecodeError, OSError):
+            return set()
+        models = payload.get("models", [])
+        names: set[str] = set()
+        for item in models:
+            if not isinstance(item, dict):
+                continue
+            for key in ("name", "model"):
+                value = item.get(key)
+                if isinstance(value, str) and value:
+                    names.add(value)
+        return names
+
+    def _resolve_ollama_model_name(self, base_url: str, requested_model: str) -> str:
+        tag_names = self._fetch_ollama_tag_names(base_url)
+        if not tag_names:
+            return requested_model
+        if requested_model in tag_names:
+            return requested_model
+
+        base = requested_model.split(":", 1)[0]
+        latest_tag = f"{base}:latest"
+        if latest_tag in tag_names:
+            return latest_tag
+
+        for name in sorted(tag_names):
+            if name.startswith(base + ":"):
+                return name
+        return requested_model
 
     def create_instance(
         self,

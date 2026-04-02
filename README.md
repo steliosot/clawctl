@@ -95,6 +95,11 @@ openclaw-k delete --user alice
 openclaw-k wait-ready --user alice
 ```
 
+Both command names are supported:
+
+- `openclaw-k`
+- `open-claw-k`
+
 ## Create Instance Examples
 
 Default OpenClaw behavior (no provider override):

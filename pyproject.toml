@@ -18,6 +18,7 @@ dependencies = [
 
 [project.scripts]
 openclaw-k = "cli:main"
+open-claw-k = "cli:main"
 
 [tool.setuptools]
 py-modules = ["api", "cli", "openclaw_manager"]

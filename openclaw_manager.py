@@ -189,6 +189,9 @@ class OpenClawManager:
         token: str | None,
         host_port: int,
         auth_mode: str,
+        provider: str | None,
+        llm_base_url: str | None,
+        llm_model: str | None,
     ) -> None:
         # Initialize per-user config non-interactively so gateway can bind immediately.
         self.client.containers.run(
@@ -232,6 +235,27 @@ class OpenClawManager:
             setup_commands.append(["node", "openclaw.mjs", "config", "set", "gateway.auth.mode", "token"])
             if TOKEN_MODE_DISABLE_DEVICE_AUTH:
                 setup_commands.append(["node", "openclaw.mjs", "config", "set", "gateway.controlUi.dangerouslyDisableDeviceAuth", "true"])
+        if provider == "ollama":
+            model_id = llm_model or "mistral"
+            base_url = llm_base_url or "http://host.docker.internal:11434"
+            provider_cfg = json.dumps(
+                {
+                    "baseUrl": base_url,
+                    "models": [
+                        {
+                            "id": model_id,
+                            "name": model_id,
+                            "api": "ollama",
+                        }
+                    ],
+                }
+            )
+            setup_commands.extend(
+                [
+                    ["node", "openclaw.mjs", "config", "set", "models.providers.ollama", provider_cfg, "--strict-json"],
+                    ["node", "openclaw.mjs", "config", "set", "agents.defaults.model.primary", f"ollama/{model_id}"],
+                ]
+            )
         for cmd in setup_commands:
             self.client.containers.run(
                 image=image,
@@ -376,7 +400,16 @@ class OpenClawManager:
         try:
             # Ensure a fresh image exists locally.
             self.client.images.pull(image_to_use)
-            self._bootstrap_user_config(image_to_use, mounts, token, host_port, auth_mode)
+            self._bootstrap_user_config(
+                image=image_to_use,
+                mounts=mounts,
+                token=token,
+                host_port=host_port,
+                auth_mode=auth_mode,
+                provider=resolved_provider,
+                llm_base_url=llm_base_url,
+                llm_model=llm_model,
+            )
             run_kwargs: dict[str, Any] = dict(
                 image=image_to_use,
                 name=container_name,
@@ -537,7 +570,16 @@ class OpenClawManager:
 
                 mounts = self._mounts_from_row(row)
                 token = row.get("token") if auth_mode == "token" else None
-                self._bootstrap_user_config(str(row["image"]), mounts, token, int(row["host_port"]))
+                self._bootstrap_user_config(
+                    image=str(row["image"]),
+                    mounts=mounts,
+                    token=token,
+                    host_port=int(row["host_port"]),
+                    auth_mode=auth_mode,
+                    provider=row.get("provider"),
+                    llm_base_url=row.get("llm_base_url"),
+                    llm_model=row.get("llm_model"),
+                )
                 row["auth_mode"] = auth_mode
                 if auth_mode == "none":
                     row["token"] = None

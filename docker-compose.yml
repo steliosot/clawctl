@@ -19,6 +19,7 @@ services:
       OPENCLAW_ALLOWED_ORIGIN_HOSTS: "localhost,127.0.0.1,host.docker.internal"
       OPENCLAW_AUTO_PAIR_ENABLED: "1"
       OPENCLAW_AUTO_PAIR_INTERVAL_SEC: "3"
+      OPENCLAW_OLLAMA_NETWORK: "clawctl_default"
     volumes:
       - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock

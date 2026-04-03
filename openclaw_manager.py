@@ -31,6 +31,8 @@ INSTANCE_AUTH_MODE = os.getenv("OPENCLAW_INSTANCE_AUTH_MODE", "token").strip().l
 MIGRATE_EXISTING_ON_START = os.getenv("OPENCLAW_MIGRATE_EXISTING_ON_START", "1").lower() in {"1", "true", "yes", "on"}
 TOKEN_MODE_DISABLE_DEVICE_AUTH = os.getenv("OPENCLAW_TOKEN_MODE_DISABLE_DEVICE_AUTH", "1").lower() in {"1", "true", "yes", "on"}
 ALLOW_ALL_ORIGINS = os.getenv("OPENCLAW_ALLOW_ALL_ORIGINS", "1").lower() in {"1", "true", "yes", "on"}
+OLLAMA_NETWORK = os.getenv("OPENCLAW_OLLAMA_NETWORK", "clawctl_default").strip() or "clawctl_default"
+OLLAMA_CONTAINER_NAME = os.getenv("OPENCLAW_OLLAMA_CONTAINER_NAME", "ollama").strip() or "ollama"
 ALLOWED_ORIGIN_HOSTS = [
     h.strip()
     for h in os.getenv("OPENCLAW_ALLOWED_ORIGIN_HOSTS", "localhost,127.0.0.1,host.docker.internal").split(",")
@@ -343,7 +345,7 @@ class OpenClawManager:
         if normalized == "":
             return None, {}, None, None, None
         if normalized == "ollama":
-            llm_base_url = os.getenv("OPENCLAW_OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+            llm_base_url = self._default_ollama_base_url()
             llm_model = (model.strip() if model and model.strip() else os.getenv("OPENCLAW_OLLAMA_MODEL", "mistral"))
             llm_model = self._resolve_ollama_model_name(base_url=llm_base_url, requested_model=llm_model)
             ollama_api_key = os.getenv("OPENCLAW_OLLAMA_API_KEY", "ollama-local")
@@ -355,6 +357,51 @@ class OpenClawManager:
             }
             return "ollama", env, None, llm_base_url, llm_model
         raise ManagerError(f"Unsupported provider '{provider}'. Supported: ollama")
+
+    def _default_ollama_base_url(self) -> str:
+        explicit = os.getenv("OPENCLAW_OLLAMA_BASE_URL", "").strip()
+        if explicit:
+            return explicit
+        if self._container_exists(OLLAMA_CONTAINER_NAME):
+            return f"http://{OLLAMA_CONTAINER_NAME}:11434"
+        return "http://host.docker.internal:11434"
+
+    def _container_exists(self, name: str) -> bool:
+        try:
+            self.client.containers.get(name)
+            return True
+        except NotFound:
+            return False
+        except DockerException:
+            return False
+
+    def _ensure_network(self, name: str) -> None:
+        try:
+            self.client.networks.get(name)
+            return
+        except NotFound:
+            pass
+        except DockerException as exc:
+            raise ManagerError(f"Failed to inspect network '{name}': {exc}") from exc
+        try:
+            self.client.networks.create(name=name, driver="bridge")
+        except DockerException as exc:
+            raise ManagerError(f"Failed to create network '{name}': {exc}") from exc
+
+    def _ensure_container_on_network(self, container_name: str, network_name: str) -> None:
+        if not self._container_exists(container_name):
+            return
+        try:
+            container = self.client.containers.get(container_name)
+            attached = container.attrs.get("NetworkSettings", {}).get("Networks", {})
+            if network_name in attached:
+                return
+            network = self.client.networks.get(network_name)
+            network.connect(container)
+        except DockerException as exc:
+            raise ManagerError(
+                f"Failed to connect container '{container_name}' to network '{network_name}': {exc}"
+            ) from exc
 
     def _fetch_ollama_tag_names(self, base_url: str) -> set[str]:
         url = urljoin(base_url.rstrip("/") + "/", "api/tags")
@@ -475,6 +522,9 @@ class OpenClawManager:
                 },
             )
             if resolved_provider == "ollama":
+                self._ensure_network(OLLAMA_NETWORK)
+                self._ensure_container_on_network(OLLAMA_CONTAINER_NAME, OLLAMA_NETWORK)
+                run_kwargs["network"] = OLLAMA_NETWORK
                 run_kwargs["extra_hosts"] = {"host.docker.internal": "host-gateway"}
             self.client.containers.run(**run_kwargs)
             container_started = True

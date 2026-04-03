@@ -209,6 +209,17 @@ def _docker_available() -> bool:
     return result.returncode == 0
 
 
+def _compose_base_cmd() -> list[str]:
+    compose_v2 = _run_capture(["docker", "compose", "version"])
+    if compose_v2.returncode == 0:
+        return ["docker", "compose"]
+    compose_v1 = _run_capture(["docker-compose", "--version"])
+    if compose_v1.returncode == 0:
+        return ["docker-compose"]
+    typer.echo("Docker Compose is required (`docker compose` or `docker-compose`) but was not found.")
+    raise typer.Exit(code=1)
+
+
 def _wait_manager_health(timeout_seconds: int = 90) -> bool:
     for _ in range(timeout_seconds):
         try:
@@ -226,7 +237,7 @@ def _compose_up(project_dir: Path) -> None:
     if not compose_file.exists():
         typer.echo(f"docker-compose.yml not found in {project_dir}")
         raise typer.Exit(code=1)
-    cmd = ["docker", "compose", "up", "-d", "--build"]
+    cmd = [*_compose_base_cmd(), "up", "-d", "--build"]
     legacy = _run_capture(["docker", "inspect", LEGACY_MANAGER_CONTAINER_NAME])
     current = _run_capture(["docker", "inspect", MANAGER_CONTAINER_NAME])
     if legacy.returncode == 0 and current.returncode != 0:

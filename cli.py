@@ -15,6 +15,8 @@ app = typer.Typer(help="CLI for OpenClaw instance manager API.")
 API_URL = os.getenv("OPENCLAW_MANAGER_API", "http://127.0.0.1:8080")
 DEFAULT_PROJECT_DIR = Path(os.getenv("OPENCLAW_MANAGER_PROJECT_DIR", ".")).resolve()
 MANAGER_HEALTH_URL = f"{API_URL.rstrip('/')}/healthz"
+MANAGER_CONTAINER_NAME = "clawctl-server"
+LEGACY_MANAGER_CONTAINER_NAME = "openclaw-manager"
 OLLAMA_CONTAINER_NAME = "ollama"
 OLLAMA_IMAGE = "ollama/ollama:latest"
 OLLAMA_PORT = "11434:11434"
@@ -107,16 +109,27 @@ def _compose_up(project_dir: Path) -> None:
         typer.echo(f"docker-compose.yml not found in {project_dir}")
         raise typer.Exit(code=1)
     cmd = ["docker", "compose", "up", "-d", "--build"]
+    legacy = _run_capture(["docker", "inspect", LEGACY_MANAGER_CONTAINER_NAME])
+    current = _run_capture(["docker", "inspect", MANAGER_CONTAINER_NAME])
+    if legacy.returncode == 0 and current.returncode != 0:
+        typer.echo(
+            f"Detected legacy manager container '{LEGACY_MANAGER_CONTAINER_NAME}'. "
+            f"Replacing with '{MANAGER_CONTAINER_NAME}'."
+        )
+        _run(["docker", "rm", "-f", LEGACY_MANAGER_CONTAINER_NAME])
+
     first = _run_capture(cmd, cwd=project_dir)
     if first.returncode == 0:
         typer.echo(first.stdout, nl=False)
         return
 
     output = f"{first.stdout}\n{first.stderr}".lower()
-    conflict_hint = 'container name "/openclaw-manager" is already in use'
-    if conflict_hint in output:
-        typer.echo("Detected openclaw-manager container-name conflict. Removing stale container and retrying once...")
-        _run(["docker", "rm", "-f", "openclaw-manager"])
+    conflict_names = (MANAGER_CONTAINER_NAME, LEGACY_MANAGER_CONTAINER_NAME)
+    conflict_detected = any(f'container name "/{name}" is already in use' in output for name in conflict_names)
+    if conflict_detected:
+        typer.echo("Detected manager container-name conflict. Removing stale container(s) and retrying once...")
+        _remove_container_if_exists(MANAGER_CONTAINER_NAME)
+        _remove_container_if_exists(LEGACY_MANAGER_CONTAINER_NAME)
         second = _run_capture(cmd, cwd=project_dir)
         if second.returncode == 0:
             typer.echo(second.stdout, nl=False)
@@ -217,7 +230,8 @@ def _docker_ids(cmd: list[str]) -> list[str]:
 
 def _reset_environment(project_dir: Path) -> None:
     typer.echo("Reset: removing manager and managed user containers...")
-    _remove_container_if_exists("openclaw-manager")
+    _remove_container_if_exists(MANAGER_CONTAINER_NAME)
+    _remove_container_if_exists(LEGACY_MANAGER_CONTAINER_NAME)
     user_containers = _docker_ids(
         [
             "docker",

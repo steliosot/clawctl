@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name="clawctl",
-    version="0.1.2",
+    version="0.1.3",
     description="Simple manager and CLI for per-user OpenClaw Docker instances",
     py_modules=["api", "cli", "openclaw_manager", "clawctl"],
     python_requires=">=3.10",

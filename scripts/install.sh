@@ -81,6 +81,9 @@ resolve_clawctl_path() {
 
 install_global_wrapper() {
   local target="$1"
+  if [ "$target" = "/usr/local/bin/clawctl" ]; then
+    return 0
+  fi
   if [ -w /usr/local/bin ]; then
     ln -sf "$target" /usr/local/bin/clawctl
     return
@@ -95,7 +98,9 @@ install_global_wrapper() {
 ensure_user_wrapper_and_path() {
   local target="$1"
   mkdir -p "$USER_BIN"
-  ln -sf "$target" "${USER_BIN}/clawctl"
+  if [ "$target" != "${USER_BIN}/clawctl" ]; then
+    ln -sf "$target" "${USER_BIN}/clawctl"
+  fi
 
   append_path_line "${HOME}/.profile"
   append_path_line "${HOME}/.bashrc"

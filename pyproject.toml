@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clawctl"
-version = "0.1.2"
+version = "0.1.3"
 description = "Simple manager and CLI for per-user OpenClaw Docker instances"
 readme = "README.md"
 requires-python = ">=3.10"

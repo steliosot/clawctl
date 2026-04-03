@@ -5,6 +5,7 @@ REPO_URL="git+https://github.com/steliosot/clawctl.git"
 RAW_INSTALL_URL="https://raw.githubusercontent.com/steliosot/clawctl/main/scripts/install.sh"
 USER_BIN="${HOME}/.local/bin"
 SHELL_NAME="$(basename "${SHELL:-bash}")"
+ORIGINAL_PATH="${PATH}"
 
 log() {
   printf '%s\n' "$*"
@@ -81,16 +82,17 @@ resolve_clawctl_path() {
 
 install_global_wrapper() {
   local target="$1"
-  if [ "$target" = "/usr/local/bin/clawctl" ]; then
+  if [ -e "/usr/local/bin/clawctl" ] && [ "$(readlink -f "$target")" = "$(readlink -f "/usr/local/bin/clawctl")" ]; then
     return 0
   fi
   if [ -w /usr/local/bin ]; then
     ln -sf "$target" /usr/local/bin/clawctl
     return
   fi
-  if have sudo && sudo -n true 2>/dev/null; then
-    sudo ln -sf "$target" /usr/local/bin/clawctl
-    return
+  if have sudo; then
+    if sudo ln -sf "$target" /usr/local/bin/clawctl; then
+      return
+    fi
   fi
   return 1
 }
@@ -98,7 +100,9 @@ install_global_wrapper() {
 ensure_user_wrapper_and_path() {
   local target="$1"
   mkdir -p "$USER_BIN"
-  if [ "$target" != "${USER_BIN}/clawctl" ]; then
+  if [ -e "${USER_BIN}/clawctl" ] && [ "$(readlink -f "$target")" = "$(readlink -f "${USER_BIN}/clawctl")" ]; then
+    :
+  else
     ln -sf "$target" "${USER_BIN}/clawctl"
   fi
 
@@ -132,7 +136,12 @@ main() {
 
   if ! clawctl --help >/dev/null 2>&1; then
     log "Install finished, but clawctl is not yet on this shell PATH."
-    log "Open a new shell, or run: export PATH=\"${USER_BIN}:\$PATH\""
+    if ! printf '%s' "${ORIGINAL_PATH}" | tr ':' '\n' | grep -qx "${USER_BIN}"; then
+      log "This is expected when using: curl ... | bash (runs in a subshell)."
+      log "Use one-command current-shell install:"
+      log "  source <(curl -fsSL ${RAW_INSTALL_URL})"
+    fi
+    log "Or open a new shell, or run: export PATH=\"${USER_BIN}:\$PATH\""
     log "Fallback: python3 -m clawctl --help"
     exit 1
   fi

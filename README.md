@@ -34,7 +34,12 @@ Runs with 1 manager container, 1 OpenClaw container per user, and a shared Ollam
 curl -fsSL https://raw.githubusercontent.com/steliosot/clawctl/main/scripts/install.sh | bash
 ```
 
-No PATH tweaks needed. Works for Ubuntu/CentOS-style Linux shells.
+Works for Ubuntu/CentOS-style Linux shells.
+If your shell still cannot find `clawctl` immediately, run the installer in current shell:
+
+```bash
+source <(curl -fsSL https://raw.githubusercontent.com/steliosot/clawctl/main/scripts/install.sh)
+```
 
 Verify:
 

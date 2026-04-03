@@ -56,7 +56,12 @@ install_with_pipx_or_pip() {
   fi
 
   log "pipx not found; installing with python3 -m pip --user..."
-  python3 -m pip install --user --upgrade "${REPO_URL}"
+  if python3 -m pip install --user --upgrade "${REPO_URL}"; then
+    return
+  fi
+
+  log "Retrying with --break-system-packages (PEP 668 environments)..."
+  python3 -m pip install --user --break-system-packages --upgrade "${REPO_URL}"
 }
 
 resolve_clawctl_path() {
@@ -97,6 +102,31 @@ install_global_wrapper() {
   return 1
 }
 
+install_path_wrapper() {
+  local target="$1"
+  local IFS=':'
+  local d=""
+  for d in $PATH; do
+    [ -n "$d" ] || continue
+    case "$d" in
+      "$HOME"/*)
+        if [ ! -d "$d" ]; then
+          mkdir -p "$d" 2>/dev/null || true
+        fi
+        ;;
+    esac
+    [ -d "$d" ] || continue
+    [ -w "$d" ] || continue
+
+    if [ -e "${d}/clawctl" ] && [ "$(readlink -f "$target")" = "$(readlink -f "${d}/clawctl")" ]; then
+      return 0
+    fi
+    ln -sf "$target" "${d}/clawctl"
+    return 0
+  done
+  return 1
+}
+
 ensure_user_wrapper_and_path() {
   local target="$1"
   mkdir -p "$USER_BIN"
@@ -127,6 +157,8 @@ main() {
   if install_global_wrapper "$clawctl_path"; then
     export PATH="/usr/local/bin:$PATH"
     log "Linked clawctl into /usr/local/bin."
+  elif install_path_wrapper "$clawctl_path"; then
+    log "Linked clawctl into an existing PATH directory."
   else
     ensure_user_wrapper_and_path "$clawctl_path"
     log "Linked clawctl into ${USER_BIN} and updated shell profiles."
@@ -134,23 +166,21 @@ main() {
 
   hash -r || true
 
-  if ! clawctl --help >/dev/null 2>&1; then
-    log "Install finished, but clawctl is not yet on this shell PATH."
-    if ! printf '%s' "${ORIGINAL_PATH}" | tr ':' '\n' | grep -qx "${USER_BIN}"; then
-      log "This is expected when using: curl ... | bash (runs in a subshell)."
-      log "Use one-command current-shell install:"
-      log "  source <(curl -fsSL ${RAW_INSTALL_URL})"
-    fi
-    log "Or open a new shell, or run: export PATH=\"${USER_BIN}:\$PATH\""
-    log "Fallback: python3 -m clawctl --help"
-    exit 1
+  if PATH="${ORIGINAL_PATH}" command -v clawctl >/dev/null 2>&1; then
+    log "clawctl is ready."
+    log "Try:"
+    log "  clawctl --help"
+    log "  clawctl up"
+    log "Installer URL: ${RAW_INSTALL_URL}"
+    return
   fi
 
-  log "clawctl is ready."
-  log "Try:"
-  log "  clawctl --help"
-  log "  clawctl up"
-  log "Installer URL: ${RAW_INSTALL_URL}"
+  log "Install succeeded, but clawctl is not visible in your current shell PATH."
+  log "Use one-command current-shell install:"
+  log "  source <(curl -fsSL ${RAW_INSTALL_URL})"
+  log "Or open a new shell and retry: clawctl --help"
+  log "Fallback command: python3 -m clawctl --help"
+  exit 1
 }
 
 main "$@"

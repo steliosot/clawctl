@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import importlib
+import inspect
 import os
 import shutil
 import subprocess
@@ -14,7 +16,7 @@ import typer
 
 app = typer.Typer(help="CLI for OpenClaw instance manager API.")
 API_URL = os.getenv("OPENCLAW_MANAGER_API", "http://127.0.0.1:8080")
-DEFAULT_PROJECT_DIR = Path(os.getenv("OPENCLAW_MANAGER_PROJECT_DIR", ".")).resolve()
+DEFAULT_PROJECT_DIR = Path(os.getenv("OPENCLAW_MANAGER_PROJECT_DIR", "~/.clawctl")).expanduser().resolve()
 MANAGER_HEALTH_URL = f"{API_URL.rstrip('/')}/healthz"
 MANAGER_CONTAINER_NAME = "clawctl-server"
 LEGACY_MANAGER_CONTAINER_NAME = "openclaw-manager"
@@ -30,6 +32,54 @@ OLLAMA_MODEL_CATALOG: list[tuple[str, str]] = [
     ("qwen2.5-coder:7b", "4.7 GB"),
     ("llama3.1:8b", "4.9 GB"),
 ]
+
+DOCKERFILE_TEMPLATE = """FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+COPY api.py cli.py openclaw_manager.py /app/
+
+EXPOSE 8080
+
+CMD ["python", "api.py"]
+"""
+
+DOCKER_COMPOSE_TEMPLATE = """services:
+  manager:
+    image: clawctl-server:latest
+    build: .
+    container_name: clawctl-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      OPENCLAW_IMAGE: ghcr.io/openclaw/openclaw:slim
+      OPENCLAW_MANAGER_DATA_DIR: /app/data
+      OPENCLAW_STORAGE_MODE: volume
+      OPENCLAW_BIND_HOST: 127.0.0.1
+      OPENCLAW_INSTANCE_AUTH_MODE: token
+      OPENCLAW_MIGRATE_EXISTING_ON_START: "1"
+      OPENCLAW_TOKEN_MODE_DISABLE_DEVICE_AUTH: "1"
+      OPENCLAW_PORT_START: 20000
+      OPENCLAW_PORT_END: 29999
+      OPENCLAW_ALLOW_ALL_ORIGINS: "1"
+      OPENCLAW_ALLOWED_ORIGIN_HOSTS: "localhost,127.0.0.1,host.docker.internal"
+      OPENCLAW_AUTO_PAIR_ENABLED: "1"
+      OPENCLAW_AUTO_PAIR_INTERVAL_SEC: "3"
+    volumes:
+      - ./data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+"""
+
+REQUIREMENTS_TEMPLATE = """fastapi==0.116.1
+uvicorn==0.35.0
+docker==7.1.0
+typer==0.16.1
+requests==2.32.4
+"""
 
 
 def _remove_managed_user_containers() -> None:
@@ -71,6 +121,32 @@ def _clear_local_manager_data(project_dir: Path) -> None:
     users_dir.mkdir(parents=True, exist_ok=True)
     instances_file.parent.mkdir(parents=True, exist_ok=True)
     instances_file.write_text("{}\n", encoding="utf-8")
+
+
+def _write_file_if_missing(path: Path, content: str) -> None:
+    if not path.exists():
+        path.write_text(content, encoding="utf-8")
+
+
+def _copy_module_file(module_name: str, dest: Path) -> None:
+    if dest.exists():
+        return
+    module = importlib.import_module(module_name)
+    source = inspect.getsourcefile(module)
+    if not source:
+        raise RuntimeError(f"Could not locate source file for module '{module_name}'.")
+    dest.write_text(Path(source).read_text(encoding="utf-8"), encoding="utf-8")
+
+
+def _ensure_project_bootstrap(project_dir: Path) -> None:
+    project_dir.mkdir(parents=True, exist_ok=True)
+    (project_dir / "data").mkdir(parents=True, exist_ok=True)
+    _write_file_if_missing(project_dir / "docker-compose.yml", DOCKER_COMPOSE_TEMPLATE)
+    _write_file_if_missing(project_dir / "Dockerfile", DOCKERFILE_TEMPLATE)
+    _write_file_if_missing(project_dir / "requirements.txt", REQUIREMENTS_TEMPLATE)
+    _copy_module_file("api", project_dir / "api.py")
+    _copy_module_file("cli", project_dir / "cli.py")
+    _copy_module_file("openclaw_manager", project_dir / "openclaw_manager.py")
 
 
 def _print_response(r: requests.Response) -> None:
@@ -372,6 +448,8 @@ def up(
     if not _docker_available():
         typer.echo("Docker is not available. Please install/start Docker first.")
         raise typer.Exit(code=1)
+
+    _ensure_project_bootstrap(DEFAULT_PROJECT_DIR)
 
     if reset:
         _reset_environment(DEFAULT_PROJECT_DIR)

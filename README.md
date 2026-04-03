@@ -53,6 +53,9 @@ Bootstrap the server with the setup wizard:
 clawctl up
 ```
 
+You can run `clawctl up` from any directory.  
+By default, runtime files are managed in `~/.clawctl` (override with `OPENCLAW_MANAGER_PROJECT_DIR`).
+
 ### Advanced / Manual Install
 
 ```bash

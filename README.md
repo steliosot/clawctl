@@ -1,6 +1,6 @@
 # clawctl
 
-**`OpenClaw up and running in 3 seconds!`**
+**`OpenClaw up and running in under 3 seconds!`**
 
 A simple manager for spinning up an OpenClaw Docker container per user in seconds.
 
@@ -34,22 +34,22 @@ Runs with 1 manager container, 1 OpenClaw container per user, and a shared Ollam
 pip install "git+https://github.com/steliosot/clawctl.git"
 ```
 
-Start the manager (from repo root):
+Bootstrap the server with the setup wizard (run from repo root):
 
 ```bash
-docker compose up -d --build
+clawctl up
+```
+
+Quick non-interactive example:
+
+```bash
+clawctl up --non-interactive --provider ollama --model mistral:latest --create-user --user alice --port 21010
 ```
 
 Health check:
 
 ```bash
 curl http://127.0.0.1:8080/healthz
-```
-
-Expected:
-
-```json
-{"status":"ok"}
 ```
 
 Set CLI API target:
@@ -116,6 +116,7 @@ Usage: `clawctl [OPTIONS] COMMAND [ARGS]...`
 
 | Command | What it does |
 |---|---|
+| `up` | Bootstrap manager + optional provider setup wizard |
 | `create` | Create a user instance/container |
 | `list` | List all user instances |
 | `info` | Show one user instance details |
@@ -128,6 +129,14 @@ Options:
 - `--install-completion`
 - `--show-completion`
 - `--help`
+
+`up` automation flags:
+
+- `--non-interactive`
+- `--provider [cloud|ollama|vllm]`
+- `--model <model>`
+- `--create-user --user <id> [--port <port>]`
+- `--skip-ollama`
 
 ### Create Instance Examples
 

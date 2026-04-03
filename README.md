@@ -123,7 +123,9 @@ Usage: `clawctl [OPTIONS] COMMAND [ARGS]...`
 
 | Command | What it does |
 |---|---|
-| `up` | Bootstrap manager + optional provider setup wizard |
+| `up` | Bootstrap/recover manager + optional provider setup wizard |
+| `down` | Stop/remove manager + managed user containers (+ optional prune) |
+| `update` | Update clawctl from GitHub and bring services back up |
 | `create` | Create a user instance/container |
 | `list` | List all user instances |
 | `info` | Show one user instance details |
@@ -145,6 +147,43 @@ Options:
 - `--model <model>`
 - `--create-user --user <id> [--port <port>]`
 - `--skip-ollama`
+
+`down` flags:
+
+- `--prune` (also remove managed volumes and local manager state)
+
+### VM Reboot Recovery
+
+After a GCP VM restart, Docker containers with `restart: unless-stopped` usually come back automatically.
+If anything is down or you want a one-shot recovery, run:
+
+```bash
+clawctl up
+```
+
+From zero (full reset + fresh bootstrap):
+
+```bash
+clawctl up --reset
+```
+
+Controlled shutdown:
+
+```bash
+clawctl down
+```
+
+Stop and also wipe managed volumes/local state:
+
+```bash
+clawctl down --prune
+```
+
+Upgrade to latest clawctl and recover services:
+
+```bash
+clawctl update
+```
 
 ### Create Instance Examples
 

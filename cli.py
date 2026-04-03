@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -29,6 +30,47 @@ OLLAMA_MODEL_CATALOG: list[tuple[str, str]] = [
     ("qwen2.5-coder:7b", "4.7 GB"),
     ("llama3.1:8b", "4.9 GB"),
 ]
+
+
+def _remove_managed_user_containers() -> None:
+    user_containers = _docker_ids(
+        [
+            "docker",
+            "ps",
+            "-a",
+            "--filter",
+            "label=managed-by=openclaw-manager",
+            "--format",
+            "{{.ID}}",
+        ]
+    )
+    if user_containers:
+        _run(["docker", "rm", "-f", *user_containers])
+
+
+def _remove_managed_user_volumes() -> None:
+    user_volumes = _docker_ids(
+        [
+            "docker",
+            "volume",
+            "ls",
+            "-q",
+            "--filter",
+            "label=managed-by=openclaw-manager",
+        ]
+    )
+    if user_volumes:
+        _run(["docker", "volume", "rm", *user_volumes])
+
+
+def _clear_local_manager_data(project_dir: Path) -> None:
+    users_dir = project_dir / "data" / "users"
+    instances_file = project_dir / "data" / "instances.json"
+    if users_dir.exists():
+        shutil.rmtree(users_dir, ignore_errors=True)
+    users_dir.mkdir(parents=True, exist_ok=True)
+    instances_file.parent.mkdir(parents=True, exist_ok=True)
+    instances_file.write_text("{}\n", encoding="utf-8")
 
 
 def _print_response(r: requests.Response) -> None:
@@ -232,42 +274,13 @@ def _reset_environment(project_dir: Path) -> None:
     typer.echo("Reset: removing manager and managed user containers...")
     _remove_container_if_exists(MANAGER_CONTAINER_NAME)
     _remove_container_if_exists(LEGACY_MANAGER_CONTAINER_NAME)
-    user_containers = _docker_ids(
-        [
-            "docker",
-            "ps",
-            "-a",
-            "--filter",
-            "label=managed-by=openclaw-manager",
-            "--format",
-            "{{.ID}}",
-        ]
-    )
-    if user_containers:
-        _run(["docker", "rm", "-f", *user_containers])
+    _remove_managed_user_containers()
 
     typer.echo("Reset: removing managed user volumes...")
-    user_volumes = _docker_ids(
-        [
-            "docker",
-            "volume",
-            "ls",
-            "-q",
-            "--filter",
-            "label=managed-by=openclaw-manager",
-        ]
-    )
-    if user_volumes:
-        _run(["docker", "volume", "rm", *user_volumes])
+    _remove_managed_user_volumes()
 
     typer.echo("Reset: clearing local manager data...")
-    users_dir = project_dir / "data" / "users"
-    instances_file = project_dir / "data" / "instances.json"
-    if users_dir.exists():
-        shutil.rmtree(users_dir, ignore_errors=True)
-    users_dir.mkdir(parents=True, exist_ok=True)
-    instances_file.parent.mkdir(parents=True, exist_ok=True)
-    instances_file.write_text("{}\n", encoding="utf-8")
+    _clear_local_manager_data(project_dir)
 
     typer.echo("Reset: removing ollama container and volume...")
     _remove_container_if_exists(OLLAMA_CONTAINER_NAME)
@@ -468,6 +481,60 @@ def up(
         provider=create_provider,
         model=create_model,
     )
+
+
+@app.command()
+def down(
+    prune: bool = typer.Option(False, "--prune", help="Also remove managed volumes and local manager state."),
+) -> None:
+    if not _docker_available():
+        typer.echo("Docker is not available. Please install/start Docker first.")
+        raise typer.Exit(code=1)
+
+    typer.echo("Stopping/removing manager containers...")
+    _remove_container_if_exists(MANAGER_CONTAINER_NAME)
+    _remove_container_if_exists(LEGACY_MANAGER_CONTAINER_NAME)
+
+    typer.echo("Stopping/removing managed user containers...")
+    _remove_managed_user_containers()
+
+    typer.echo("Stopping/removing Ollama container (if present)...")
+    _remove_container_if_exists(OLLAMA_CONTAINER_NAME)
+
+    if prune:
+        typer.echo("Prune enabled: removing managed user volumes...")
+        _remove_managed_user_volumes()
+        typer.echo("Prune enabled: clearing local manager data...")
+        _clear_local_manager_data(DEFAULT_PROJECT_DIR)
+
+    typer.echo("Done. Services are down.")
+
+
+@app.command()
+def update() -> None:
+    pip_cmd = [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--upgrade",
+        "git+https://github.com/steliosot/clawctl.git",
+    ]
+    typer.echo("Updating clawctl from GitHub...")
+    pip_result = _run_capture(pip_cmd)
+    if pip_result.returncode != 0:
+        typer.echo(pip_result.stdout, nl=False)
+        typer.echo(pip_result.stderr, nl=False)
+        typer.echo("Update failed. Please check network/pip and retry.")
+        raise typer.Exit(code=pip_result.returncode)
+    typer.echo(pip_result.stdout, nl=False)
+    typer.echo("Update completed. Restarting services...")
+
+    try:
+        up(non_interactive=True, provider=None, model=None, create_user=False, user=None, port=None, skip_ollama=False, reset=False)
+    except typer.Exit as exc:
+        typer.echo("Update installed, but service recovery failed. Run: clawctl up")
+        raise typer.Exit(code=exc.exit_code if exc.exit_code is not None else 1) from exc
 
 
 def main() -> None:

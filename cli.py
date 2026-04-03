@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -67,6 +68,19 @@ def _run(cmd: list[str], cwd: Path | None = None, fail_message: str | None = Non
         raise typer.Exit(code=result.returncode)
 
 
+def _run_capture(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            cmd,
+            cwd=str(cwd) if cwd else None,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise typer.Exit(code=1) from exc
+
+
 def _docker_available() -> bool:
     try:
         result = subprocess.run(["docker", "info"], capture_output=True, text=True, check=False)
@@ -92,11 +106,30 @@ def _compose_up(project_dir: Path) -> None:
     if not compose_file.exists():
         typer.echo(f"docker-compose.yml not found in {project_dir}")
         raise typer.Exit(code=1)
-    _run(
-        ["docker", "compose", "up", "-d", "--build"],
-        cwd=project_dir,
-        fail_message="Failed to start manager with docker compose.",
-    )
+    cmd = ["docker", "compose", "up", "-d", "--build"]
+    first = _run_capture(cmd, cwd=project_dir)
+    if first.returncode == 0:
+        typer.echo(first.stdout, nl=False)
+        return
+
+    output = f"{first.stdout}\n{first.stderr}".lower()
+    conflict_hint = 'container name "/openclaw-manager" is already in use'
+    if conflict_hint in output:
+        typer.echo("Detected openclaw-manager container-name conflict. Removing stale container and retrying once...")
+        _run(["docker", "rm", "-f", "openclaw-manager"])
+        second = _run_capture(cmd, cwd=project_dir)
+        if second.returncode == 0:
+            typer.echo(second.stdout, nl=False)
+            return
+        typer.echo(second.stdout, nl=False)
+        typer.echo(second.stderr, nl=False)
+        typer.echo("Failed to start manager with docker compose after conflict retry.")
+        raise typer.Exit(code=second.returncode)
+
+    typer.echo(first.stdout, nl=False)
+    typer.echo(first.stderr, nl=False)
+    typer.echo("Failed to start manager with docker compose.")
+    raise typer.Exit(code=first.returncode)
 
 
 def _ollama_container_exists() -> bool:
@@ -135,6 +168,96 @@ def _pull_ollama_model(model: str) -> None:
         ["docker", "exec", OLLAMA_CONTAINER_NAME, "ollama", "pull", model],
         fail_message=f"Failed to pull ollama model '{model}'.",
     )
+
+
+def _ollama_list_model_tags() -> list[str]:
+    result = _run_capture(["docker", "exec", OLLAMA_CONTAINER_NAME, "ollama", "list"])
+    if result.returncode != 0:
+        return []
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    tags: list[str] = []
+    for line in lines[1:]:
+        parts = line.split()
+        if not parts:
+            continue
+        tags.append(parts[0])
+    return tags
+
+
+def _resolve_canonical_ollama_tag(requested_model: str) -> str:
+    tags = _ollama_list_model_tags()
+    if not tags:
+        return requested_model
+    if requested_model in tags:
+        return requested_model
+
+    base = requested_model.split(":", 1)[0]
+    latest = f"{base}:latest"
+    if latest in tags:
+        return latest
+
+    family_matches = sorted([tag for tag in tags if tag.startswith(base + ":")])
+    if family_matches:
+        return family_matches[0]
+    return requested_model
+
+
+def _remove_container_if_exists(name: str) -> None:
+    probe = _run_capture(["docker", "inspect", name])
+    if probe.returncode == 0:
+        _run(["docker", "rm", "-f", name])
+
+
+def _docker_ids(cmd: list[str]) -> list[str]:
+    result = _run_capture(cmd)
+    if result.returncode != 0:
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def _reset_environment(project_dir: Path) -> None:
+    typer.echo("Reset: removing manager and managed user containers...")
+    _remove_container_if_exists("openclaw-manager")
+    user_containers = _docker_ids(
+        [
+            "docker",
+            "ps",
+            "-a",
+            "--filter",
+            "label=managed-by=openclaw-manager",
+            "--format",
+            "{{.ID}}",
+        ]
+    )
+    if user_containers:
+        _run(["docker", "rm", "-f", *user_containers])
+
+    typer.echo("Reset: removing managed user volumes...")
+    user_volumes = _docker_ids(
+        [
+            "docker",
+            "volume",
+            "ls",
+            "-q",
+            "--filter",
+            "label=managed-by=openclaw-manager",
+        ]
+    )
+    if user_volumes:
+        _run(["docker", "volume", "rm", *user_volumes])
+
+    typer.echo("Reset: clearing local manager data...")
+    users_dir = project_dir / "data" / "users"
+    instances_file = project_dir / "data" / "instances.json"
+    if users_dir.exists():
+        shutil.rmtree(users_dir, ignore_errors=True)
+    users_dir.mkdir(parents=True, exist_ok=True)
+    instances_file.parent.mkdir(parents=True, exist_ok=True)
+    instances_file.write_text("{}\n", encoding="utf-8")
+
+    typer.echo("Reset: removing ollama container and volume...")
+    _remove_container_if_exists(OLLAMA_CONTAINER_NAME)
+    _run_capture(["docker", "volume", "rm", "ollama"])
 
 
 def _create_instance_request(user: str, port: int | None, image: str | None, provider: str | None, model: str | None) -> dict:
@@ -217,10 +340,14 @@ def up(
     user: str | None = typer.Option(None, "--user"),
     port: int | None = typer.Option(None, "--port"),
     skip_ollama: bool = typer.Option(False, "--skip-ollama"),
+    reset: bool = typer.Option(False, "--reset"),
 ) -> None:
     if not _docker_available():
         typer.echo("Docker is not available. Please install/start Docker first.")
         raise typer.Exit(code=1)
+
+    if reset:
+        _reset_environment(DEFAULT_PROJECT_DIR)
 
     typer.echo("Step 1: Starting manager server...")
     _compose_up(DEFAULT_PROJECT_DIR)
@@ -278,6 +405,10 @@ def up(
                     selected_model = "mistral:latest"
         typer.echo(f"Pulling model: {selected_model}")
         _pull_ollama_model(selected_model)
+        canonical = _resolve_canonical_ollama_tag(selected_model)
+        if canonical != selected_model:
+            typer.echo(f"Ollama installed canonical tag '{canonical}' (requested '{selected_model}'). Using canonical tag.")
+            selected_model = canonical
     elif selected_provider == "cloud":
         typer.echo("Cloud selected. Configure provider API key in OpenClaw UI after opening an instance.")
 

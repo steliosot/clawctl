@@ -46,6 +46,12 @@ Quick non-interactive example:
 clawctl up --non-interactive --provider ollama --model mistral:latest --create-user --user alice --port 21010
 ```
 
+From-zero reset example (removes manager/user containers, local state, and Ollama volume):
+
+```bash
+clawctl up --reset --non-interactive --provider ollama --model qwen2.5-coder:7b --create-user --user test --port 21250
+```
+
 Health check:
 
 ```bash
@@ -102,6 +108,7 @@ Important:
 
 - `codellama:7b` is completion-only in Ollama and does not support tools for OpenClaw agent mode.
 - If a requested tag is not directly callable by Ollama in your setup (for example `qwen2.5:7b`), manager auto-resolves to a local alias (usually `:latest`).
+- `clawctl up` also canonicalizes model tags after pull based on `ollama list` and uses the installed tag for create/default model.
 - Verify capabilities with:
 
 ```bash
@@ -133,6 +140,7 @@ Options:
 `up` automation flags:
 
 - `--non-interactive`
+- `--reset`
 - `--provider [cloud|ollama|vllm]`
 - `--model <model>`
 - `--create-user --user <id> [--port <port>]`

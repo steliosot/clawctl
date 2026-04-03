@@ -536,6 +536,13 @@ def update() -> None:
         typer.echo("Update installed, but service recovery failed. Run: clawctl up")
         raise typer.Exit(code=exc.exit_code if exc.exit_code is not None else 1) from exc
 
+    if shutil.which("clawctl") is None:
+        typer.echo("Update succeeded, but `clawctl` is not on PATH in this shell.")
+        typer.echo("Run installer for PATH-safe setup:")
+        typer.echo("  curl -fsSL https://raw.githubusercontent.com/steliosot/clawctl/main/scripts/install.sh | bash")
+        typer.echo("Fallback command:")
+        typer.echo("  python3 -m clawctl --help")
+
 
 def main() -> None:
     app()

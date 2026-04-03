@@ -28,16 +28,36 @@ Runs with 1 manager container, 1 OpenClaw container per user, and a shared Ollam
 * Medium (10–25 users) needs ~16 vCPU, 32–64 GB RAM
 * Larger deployments (50+ users) require 32+ vCPU 128 GB RAM, and fast SSD/NVMe
 
-### Quick Install (from GitHub)
+### Quick Install (Recommended)
 
 ```bash
-pip install "git+https://github.com/steliosot/clawctl.git"
+curl -fsSL https://raw.githubusercontent.com/steliosot/clawctl/main/scripts/install.sh | bash
 ```
 
-Bootstrap the server with the setup wizard (run from repo root):
+No PATH tweaks needed. Works for Ubuntu/CentOS-style Linux shells.
+
+Verify:
+
+```bash
+clawctl --help
+```
+
+Bootstrap the server with the setup wizard:
 
 ```bash
 clawctl up
+```
+
+### Advanced / Manual Install
+
+```bash
+python3 -m pip install --user "git+https://github.com/steliosot/clawctl.git"
+```
+
+If your shell still cannot find `clawctl`, fallback is always:
+
+```bash
+python3 -m clawctl --help
 ```
 
 Quick non-interactive example:

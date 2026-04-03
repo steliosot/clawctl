@@ -3,9 +3,9 @@ from setuptools import setup
 
 setup(
     name="clawctl",
-    version="0.1.1",
+    version="0.1.2",
     description="Simple manager and CLI for per-user OpenClaw Docker instances",
-    py_modules=["api", "cli", "openclaw_manager"],
+    py_modules=["api", "cli", "openclaw_manager", "clawctl"],
     python_requires=">=3.10",
     install_requires=[
         "fastapi==0.116.1",
